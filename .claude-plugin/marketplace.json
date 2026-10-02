@@ -1,6 +1,6 @@
 {
   "name": "my-mods",
-  "owner": { "name": "billyq" },
+  "owner": { "name": "qinyuanjie" },
   "plugins": [
     { "name": "token-weather", "source": "./token-weather" },
     { "name": "blast-radius", "source": "./blast-radius" },

@@ -2,6 +2,6 @@
   "name": "replay-theater",
   "version": "0.1.0",
   "description": "Records the last turn's Edit and Write calls and steps through them one diff at a time with /replay.",
-  "author": { "name": "billyq" },
+  "author": { "name": "qinyuanjie" },
   "types": "./types/index.d.ts"
 }

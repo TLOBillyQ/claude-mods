@@ -3,9 +3,8 @@
 import { update } from "claude-code";
 
 const ACCENT = "#d97757";
-// Free space is a grey texture rather than a fill, so it shows on dark and light backgrounds alike.
-const FREE = "#7c8596";
-const TEXTURE = "░";
+// A light grey shows on dark and light backgrounds alike; ink reads on it and on every pastel.
+const FREE = "#c9ced6";
 const INK = "#1f2430";
 const LABEL = { "system tools": "tools", "free space": "free" };
 // /context's own theme keys are mostly greys (several rows share one) and some do not
@@ -105,26 +104,29 @@ function card(Box, Text, toggle, snap, columns, isCollapsed) {
   });
   const children = [head];
   if (!isCollapsed) {
-    children.push(Box({ flexDirection: "row", children: bar(Text, snap, Math.max(10, columns - 6)) }));
+    children.push(Box({ flexDirection: "row", children: bar(Box, Text, snap, Math.max(10, columns - 6)) }));
     if (columns >= 60) children.push(legend(Box, Text, snap));
   }
   return Box({ flexDirection: "column", borderStyle: "round", borderDimColor: true, paddingX: 1, children });
 }
 
-// Used rows in their colours, the rest of the window textured, a tick where compaction runs.
-// The tick takes the terminal's own foreground, so it stands out on either background.
-function bar(Text, snap, cells) {
+// Used rows in their colours, the rest of the window grey, a tick where compaction runs.
+// Each segment is a Box `width` cells wide, not a run of characters: the desktop counts
+// columns in its code font but draws Text in a proportional one, so runs of spaces or
+// shade glyphs come out too short or too long there.
+function bar(Box, Text, snap, cells) {
   const used = snap.rows.filter((r) => r.kind === "used");
   const counts = allot(used.map((r) => r.tokens), (snap.totalTokens / snap.maxTokens) * cells, cells);
-  const parts = used.map((r, i) => Text({ backgroundColor: colorOf(r, i), children: " ".repeat(counts[i]) }));
+  const block = (width, backgroundColor, children) => Box({ width, height: 1, flexShrink: 0, backgroundColor, children });
+  const parts = used.map((r, i) => block(counts[i], colorOf(r, i)));
   const rest = cells - counts.reduce((s, n) => s + n, 0);
   const tick = snap.compactAt ? Math.round((snap.compactAt / snap.maxTokens) * cells) - (cells - rest) : -1;
   if (tick >= 0 && tick < rest) {
-    if (tick > 0) parts.push(Text({ color: FREE, children: TEXTURE.repeat(tick) }));
-    parts.push(Text({ bold: true, children: "│" }));
-    if (rest - tick > 1) parts.push(Text({ color: FREE, children: TEXTURE.repeat(rest - tick - 1) }));
+    if (tick > 0) parts.push(block(tick, FREE));
+    parts.push(block(1, FREE, Text({ color: INK, bold: true, children: "│" })));
+    if (rest - tick > 1) parts.push(block(rest - tick - 1, FREE));
   } else if (rest > 0) {
-    parts.push(Text({ color: FREE, children: TEXTURE.repeat(rest) }));
+    parts.push(block(rest, FREE));
   }
   return parts;
 }
@@ -151,7 +153,7 @@ function legend(Box, Text, snap) {
       const isFree = r.kind === "free";
       return Text({
         children: [
-          Text({ color: isFree ? FREE : colorOf(r, i), children: `${isFree ? TEXTURE : "■"} ` }),
+          Text({ color: isFree ? FREE : colorOf(r, i), children: "■ " }),
           Text({ dimColor: isFree, children: `${LABEL[name] ?? name} ` }),
           Text({ bold: !isFree, dimColor: isFree, children: short(r.tokens) }),
           !isFree && Text({ dimColor: true, children: ` ${pct(r.tokens, snap.maxTokens)}` }),

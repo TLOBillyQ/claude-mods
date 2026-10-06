@@ -68,4 +68,51 @@ describe("context-bar", () => {
     expect(await ui.find({ type: "Text", text: /^135k$/ })).toBeDefined();
     await ui.unmount();
   });
+
+  test("the desktop draws the bar as sized blocks, not runs of characters", async ($, on) => {
+    // The desktop counts columns in its code font but draws Text in a proportional one,
+    // so a bar of spaces came out a third as wide as the card and one of ░ wrapped.
+    on("session.start", ($, e) => ({ cwd: e.cwd }));
+    on("ui.render", ($, e) => $.ui.resolve(e).Box({}));
+    on("session.usage", () => ({
+      value: {
+        startedAt: 0,
+        rateLimits: [],
+        context: {
+          window: 200_000,
+          breakdown: {
+          model: "claude-opus-5-5",
+          totalTokens: 35_000,
+          maxTokens: 200_000,
+          rawMaxTokens: 200_000,
+          percentage: 18,
+          isAutoCompactEnabled: true,
+          autoCompactThreshold: 155_000,
+          categories: [
+            { name: "System tools", tokens: 15_000, color: "inactive", kind: "used", isDeferred: false },
+            { name: "Messages", tokens: 20_000, color: "inactive", kind: "used", isDeferred: false },
+            { name: "Free space", tokens: 120_000, color: "promptBorder", kind: "free", isDeferred: false },
+            { name: "Autocompact buffer", tokens: 45_000, color: "inactive", kind: "buffer", isDeferred: false },
+          ],
+          },
+        },
+      },
+    }) as any);
+    on("command.register", () => ({ value: undefined }) as any);
+
+    await $.session.start({ surface: "desktop", isInteractive: true, cwd: "/work" } as any);
+    const ui = await $.ui.mount({
+      plugin: "context-bar",
+      surface: "desktop",
+      component: "AbovePrompt",
+      props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 120 },
+    } as any);
+    const kids = (el: any): any[] => [el?.props?.children ?? el?.children ?? []].flat(Infinity).filter((c) => c && typeof c === "object");
+    const all = (el: any): any[] => [el, ...kids(el).flatMap(all)];
+    const tree = all(await ui.drawn());
+    const blocks = tree.filter((el) => el.type === "Box" && el.props?.height === 1 && el.props?.backgroundColor);
+    expect(blocks.reduce((s, b) => s + b.props.width, 0)).toBe(114);
+    expect(await ui.find({ type: "Text", text: /^[ ░]{2,}$/ })).toBeUndefined();
+    await ui.unmount();
+  });
 });

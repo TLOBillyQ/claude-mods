@@ -55,13 +55,13 @@ export function register(on) {
     if (e.props.hasSurvey || !snap || isHidden) {
       return next(e);
     }
-    const { value: isCollapsed = false } = await $.state.get(collapsed);
+    const { value: isCollapsed = true } = await $.state.get(collapsed);
     const { Box, Text, Button } = $.ui.resolve(e);
     const toggle = Button({
       key: "toggle",
       label: `${isCollapsed ? "▸" : "▾"} context`,
       plain: true,
-      onPress: () => update($, collapsed, (v) => !v),
+      onPress: () => update($, collapsed, (v = true) => !v),
     });
     return card(Box, Text, toggle, snap, e.props.bodyColumns, isCollapsed);
   });

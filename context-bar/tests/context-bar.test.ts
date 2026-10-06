@@ -47,6 +47,9 @@ describe("context-bar", () => {
     expect(await ui.find({ type: "Text", text: /^35k$/ })).toBeDefined();
     expect(await ui.find({ type: "Text", text: /of 200k · compacts at 155k/ })).toBeDefined();
     expect(await ui.find({ type: "Text", text: / 18% / })).toBeDefined();
+    expect(await ui.find({ type: "Text", text: /^messages $/ })).toBeUndefined();
+
+    await ui.press({ key: "toggle" });
     expect(await ui.find({ type: "Text", text: /^messages $/ })).toBeDefined();
     expect(await ui.find({ type: "Text", text: /^tools $/ })).toBeDefined();
     expect(await ui.find({ type: "Text", text: /mcp tools/ })).toBeUndefined();
@@ -54,6 +57,9 @@ describe("context-bar", () => {
     messages = 120_000;
     await $.session.measure({ context: { window: 200_000 }, rateLimits: [], changed: ["context"] } as any);
     expect(await ui.find({ type: "Text", text: /^135k$/ })).toBeDefined();
+    expect(await ui.find({ type: "Text", text: /^messages $/ })).toBeDefined();
+    await $.session.start({ surface: "terminal", isInteractive: true, cwd: "/work" } as any);
+    expect(await ui.find({ type: "Text", text: /^messages $/ })).toBeDefined();
 
     await ui.press({ key: "toggle" });
     expect(await ui.find({ type: "Text", text: /^messages $/ })).toBeUndefined();
@@ -107,6 +113,7 @@ describe("context-bar", () => {
       component: "AbovePrompt",
       props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 120 },
     } as any);
+    await ui.press({ key: "toggle" });
     const kids = (el: any): any[] => [el?.props?.children ?? el?.children ?? []].flat(Infinity).filter((c) => c && typeof c === "object");
     const all = (el: any): any[] => [el, ...kids(el).flatMap(all)];
     const tree = all(await ui.drawn());

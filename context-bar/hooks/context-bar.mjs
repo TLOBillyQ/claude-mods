@@ -3,22 +3,26 @@
 import { update } from "claude-code";
 
 const ACCENT = "#d97757";
-const FREE = "#3a3f4b";
+// Free space is a grey texture rather than a fill, so it shows on dark and light backgrounds alike.
+const FREE = "#7c8596";
+const TEXTURE = "░";
+const INK = "#1f2430";
 const LABEL = { "system tools": "tools", "free space": "free" };
 // /context's own theme keys are mostly greys (several rows share one) and some do not
-// resolve as a background on every surface, so each row gets a fixed colour of its own.
+// resolve as a background on every surface, so each row gets a fixed colour of its own:
+// mid-lightness pastels, readable on either terminal background.
 const COLOR = {
-  "system prompt": "#7aa2f7",
-  "system tools": "#7fd1c7",
-  "mcp tools": "#a78bfa",
-  "custom agents": "#9ece6a",
-  agents: "#9ece6a",
-  "memory files": "#e5c07b",
-  skills: "#f5a9c9",
-  "slash commands": "#f5a9c9",
-  messages: "#e0805f",
+  "system prompt": "#5fb3e8",
+  "system tools": "#4fc8a8",
+  "mcp tools": "#a48be8",
+  "custom agents": "#8cc865",
+  agents: "#8cc865",
+  "memory files": "#e8c25a",
+  skills: "#ef8fb5",
+  "slash commands": "#ef8fb5",
+  messages: "#f08a72",
 };
-const SPARE = ["#89ddff", "#c3a6ff", "#ffcb8b", "#b4e08a", "#ff9e9e"];
+const SPARE = ["#6fd0d8", "#c69be0", "#f2a96b", "#b5d36a", "#e88f9a"];
 
 // Held by the host, so these survive a hot reload of this file.
 const snapshot = { plugin: "context-bar", key: "snapshot" };
@@ -94,7 +98,7 @@ function card(Box, Text, toggle, snap, columns, isCollapsed) {
         children: [
           Text({ bold: true, children: summary }),
           Text({ dimColor: true, children: detail }),
-          Text({ backgroundColor: badgeColor(snap.percentage), color: "black", bold: true, children: ` ${snap.percentage}% ` }),
+          Text({ backgroundColor: badgeColor(snap.percentage), color: INK, bold: true, children: ` ${snap.percentage}% ` }),
         ],
       }),
     ],
@@ -107,7 +111,8 @@ function card(Box, Text, toggle, snap, columns, isCollapsed) {
   return Box({ flexDirection: "column", borderStyle: "round", borderDimColor: true, paddingX: 1, children });
 }
 
-// Used rows in their colours, the rest of the window dark, a tick where compaction runs.
+// Used rows in their colours, the rest of the window textured, a tick where compaction runs.
+// The tick takes the terminal's own foreground, so it stands out on either background.
 function bar(Text, snap, cells) {
   const used = snap.rows.filter((r) => r.kind === "used");
   const counts = allot(used.map((r) => r.tokens), (snap.totalTokens / snap.maxTokens) * cells, cells);
@@ -115,11 +120,11 @@ function bar(Text, snap, cells) {
   const rest = cells - counts.reduce((s, n) => s + n, 0);
   const tick = snap.compactAt ? Math.round((snap.compactAt / snap.maxTokens) * cells) - (cells - rest) : -1;
   if (tick >= 0 && tick < rest) {
-    if (tick > 0) parts.push(Text({ backgroundColor: FREE, children: " ".repeat(tick) }));
-    parts.push(Text({ backgroundColor: FREE, color: "yellow", children: "│" }));
-    if (rest - tick > 1) parts.push(Text({ backgroundColor: FREE, children: " ".repeat(rest - tick - 1) }));
+    if (tick > 0) parts.push(Text({ color: FREE, children: TEXTURE.repeat(tick) }));
+    parts.push(Text({ bold: true, children: "│" }));
+    if (rest - tick > 1) parts.push(Text({ color: FREE, children: TEXTURE.repeat(rest - tick - 1) }));
   } else if (rest > 0) {
-    parts.push(Text({ backgroundColor: FREE, children: " ".repeat(rest) }));
+    parts.push(Text({ color: FREE, children: TEXTURE.repeat(rest) }));
   }
   return parts;
 }
@@ -146,7 +151,7 @@ function legend(Box, Text, snap) {
       const isFree = r.kind === "free";
       return Text({
         children: [
-          Text({ color: isFree ? FREE : colorOf(r, i), children: "■ " }),
+          Text({ color: isFree ? FREE : colorOf(r, i), children: `${isFree ? TEXTURE : "■"} ` }),
           Text({ dimColor: isFree, children: `${LABEL[name] ?? name} ` }),
           Text({ bold: !isFree, dimColor: isFree, children: short(r.tokens) }),
           !isFree && Text({ dimColor: true, children: ` ${pct(r.tokens, snap.maxTokens)}` }),
@@ -162,9 +167,9 @@ function colorOf(row, i) {
 }
 
 function badgeColor(percent) {
-  if (percent < 50) return "green";
-  if (percent < 80) return "yellow";
-  return "red";
+  if (percent < 50) return "#4fc8a8";
+  if (percent < 80) return "#e8c25a";
+  return "#f06c6c";
 }
 
 function pct(n, of) {

@@ -1,12 +1,14 @@
 # claude-mods
 
-三个 [Claude Code mod](https://claude.dev/blog/getting-started-with-claude-code-mods/)，打包成一个本地 marketplace `my-mods`。
+五个 [Claude Code mod](https://claude.dev/blog/getting-started-with-claude-code-mods/)，打包成一个本地 marketplace `my-mods`。
 
 | Mod | 作用 |
 |---|---|
 | [token-weather](token-weather) | 在输入框上方用“天气预报”显示上下文窗口用量 |
 | [blast-radius](blast-radius) | 拦下有风险的 Bash 命令，先显示会影响什么，再等你选 Proceed 或 Cancel |
 | [replay-theater](replay-theater) | 记录上一轮的文件编辑，逐个 diff 回放 |
+| [context-bar](context-bar) | 在输入框上方用一张卡片显示 `/context` 的分类明细，可折叠 |
+| [agents-panel](agents-panel) | 侧边面板列出项目的 `.claude/agents`，每个带 run 按钮 |
 
 需要 Claude Code **2.1.287 或更高版本**（`claude --version`）。
 
@@ -18,6 +20,8 @@ claude plugin marketplace add ./claude-mods
 claude plugin install token-weather@my-mods --scope user
 claude plugin install blast-radius@my-mods --scope user
 claude plugin install replay-theater@my-mods --scope user
+claude plugin install context-bar@my-mods --scope user
+claude plugin install agents-panel@my-mods --scope user
 ```
 
 装好后新开一个会话才会加载。
@@ -37,7 +41,7 @@ claude plugin marketplace update my-mods
 只想临时试用、不安装：
 
 ```bash
-claude --plugin-dir ./claude-mods/token-weather --plugin-dir ./claude-mods/blast-radius --plugin-dir ./claude-mods/replay-theater
+claude --plugin-dir ./claude-mods/token-weather --plugin-dir ./claude-mods/blast-radius --plugin-dir ./claude-mods/replay-theater --plugin-dir ./claude-mods/context-bar --plugin-dir ./claude-mods/agents-panel
 ```
 
 ## token-weather
@@ -81,6 +85,29 @@ Claude 调用下面这些 Bash 命令时，mod 会先拦住，空跑一遍算出
 ```
 
 运行 `/replay`（或聚焦提示条后按 `r`）打开回放面板：顶部是步骤条，下面是当前这一步的文件和 diff，`p` / `n` / `c` 对应 Prev / Next / Close，也可以点步骤条上的编号直接跳转。它只观察，不会阻止或修改任何编辑。
+
+## context-bar
+
+把 `/context` 的分类明细做成输入框上方的一张卡片：
+
+- 标题行：`◆ context`，右边是已用 / 窗口、自动压缩阈值和一个百分比徽章（<50% 绿、<80% 黄、其余红）
+- 一条连续的彩色条，各类别颜色与 `/context` 网格一致，剩余空间为深色，黄色竖线标出压缩点
+- 图例：每个类别的 token 数和占比
+
+```
+╭──────────────────────────────────────────────────────────────╮
+│ ◆ ▾ context                90k of 1M · compacts at 987k  9%  │
+│ ██████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░│  │
+│ ■ system prompt 4.2k 0%   ■ tools 17k 2%   ■ messages 0 0%   │
+│ ■ free 897k                                                  │
+╰──────────────────────────────────────────────────────────────╯
+```
+
+点 `▾ context` 折叠成只剩标题行，再点展开；键盘可以 ctrl+x tab 聚焦后回车。`/context-bar` 显示或隐藏整张卡片。会话开始和每轮结束后刷新，用 `summary` 模式在本地估算，不额外发 token 计数请求；按需加载的 deferred 工具不占窗口，不显示。终端窄于 60 列时不画图例。
+
+## agents-panel
+
+`/agents-panel` 在侧边打开面板，列出项目 `.claude/agents/*.md` 里定义的所有 agent：名字、模型、一行描述，右侧 `▶ run` 按钮用该 agent 启动一个子 agent（提示词为“Run your default task on this project.”）。再次运行 `/agents-panel` 关闭。只读项目目录，不读 `~/.claude/agents`；每次打开面板时重新读取。
 
 ## 开发
 

@@ -1,0 +1,7 @@
+{
+  "name": "agents-panel",
+  "version": "0.1.0",
+  "description": "A side panel listing the project's .claude/agents, each with a run button.",
+  "author": { "name": "qinyuanjie" },
+  "types": "./types/index.d.ts"
+}

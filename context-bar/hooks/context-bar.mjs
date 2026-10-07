@@ -28,11 +28,19 @@ const snapshot = { plugin: "context-bar", key: "snapshot" };
 const collapsed = { plugin: "context-bar", key: "collapsed" };
 const hidden = { plugin: "context-bar", key: "hidden" };
 
+// Mid-turn refresh. Module scope is fine here: a hot reload drops these, and
+// the host cancels the old environment's timer with it, so at worst the next
+// turn writes one extra snapshot.
+const POLL_MS = 2_000;
+const MIN_DELTA = 1_000;
+let poll = null;
+let lastWritten = null;
+
 export function register(on) {
   on("session.start", async ($, e, next) => {
     const result = await next(e);
     await $.command.register({ name: "context-bar", description: "Show or hide the context bar above the prompt" });
-    await takeSnapshot($);
+    await takeSnapshot($, true);
     return result;
   });
 
@@ -42,10 +50,37 @@ export function register(on) {
     return { text: isHidden ? "Context bar shown." : "Context bar hidden." };
   });
 
-  // Fires after each main-thread turn, compaction included.
+  // Fires after each main-thread turn, compaction included: the authoritative
+  // write, in case the throttle below suppressed the turn's final delta.
   on("session.measure", async ($, e, next) => {
     const result = await next(e);
-    await takeSnapshot($);
+    await takeSnapshot($, true);
+    return result;
+  });
+
+  // Mid-turn refreshes so a long turn's growth shows as it happens: every tool
+  // result lands here, and the poll covers growth with no tool call (long
+  // answers, queued user messages). Subagent turns raise no turn.start; their
+  // tool calls and turn.complete carry an agentId and are left alone.
+  on("turn.start", async ($, e, next) => {
+    const result = await next(e);
+    poll?.cancel();
+    poll = $.clock.every(POLL_MS, () => void takeSnapshot($));
+    return result;
+  });
+
+  on("turn.complete", async ($, e, next) => {
+    const result = await next(e);
+    if (!e.agentId) {
+      poll?.cancel();
+      poll = null;
+    }
+    return result;
+  });
+
+  on("tool.call", async ($, e, next) => {
+    const result = await next(e);
+    if (!e.agentId) await takeSnapshot($);
     return result;
   });
 
@@ -67,21 +102,37 @@ export function register(on) {
   });
 }
 
-async function takeSnapshot($) {
-  // `summary` estimates locally: no token-count requests, unlike /context's `full`.
-  const { context } = await $.session.usage({ breakdown: "summary" });
-  const b = context?.breakdown;
-  if (!b?.rawMaxTokens) return;
-  await $.state.set(snapshot, {
-    model: b.model,
-    totalTokens: b.totalTokens,
-    maxTokens: b.rawMaxTokens,
-    percentage: b.percentage,
-    compactAt: b.isAutoCompactEnabled ? b.autoCompactThreshold : undefined,
-    rows: b.categories
-      .filter((c) => c.kind !== "deferred" && c.tokens > 0)
-      .map(({ name, tokens, color, kind }) => ({ name, tokens, color, kind })),
-  });
+// Snapshots the breakdown unless nothing the user can see moved: the whole
+// percentage point unchanged and under MIN_DELTA new tokens. Never throws —
+// a mid-turn usage hiccup must not break the tool call or timer it rides on.
+async function takeSnapshot($, force = false) {
+  try {
+    // `summary` estimates locally: no token-count requests, unlike /context's `full`.
+    const { context } = await $.session.usage({ breakdown: "summary" });
+    const b = context?.breakdown;
+    if (!b?.rawMaxTokens) return;
+    if (
+      !force &&
+      lastWritten &&
+      Math.round(b.percentage) === Math.round(lastWritten.percentage) &&
+      Math.abs(b.totalTokens - lastWritten.totalTokens) < MIN_DELTA
+    ) {
+      return;
+    }
+    lastWritten = { percentage: b.percentage, totalTokens: b.totalTokens };
+    await $.state.set(snapshot, {
+      model: b.model,
+      totalTokens: b.totalTokens,
+      maxTokens: b.rawMaxTokens,
+      percentage: b.percentage,
+      compactAt: b.isAutoCompactEnabled ? b.autoCompactThreshold : undefined,
+      rows: b.categories
+        .filter((c) => c.kind !== "deferred" && c.tokens > 0)
+        .map(({ name, tokens, color, kind }) => ({ name, tokens, color, kind })),
+    });
+  } catch {
+    // See above: stale beats broken.
+  }
 }
 
 function card(Box, Text, toggle, snap, columns, isCollapsed) {

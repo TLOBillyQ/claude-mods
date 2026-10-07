@@ -1,6 +1,6 @@
 {
   "name": "context-bar",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "The /context breakdown as one live bar, drawn above the prompt.",
   "author": { "name": "qinyuanjie" },
   "types": "./types/index.d.ts"

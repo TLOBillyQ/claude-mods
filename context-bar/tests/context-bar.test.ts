@@ -75,6 +75,61 @@ describe("context-bar", () => {
     await ui.unmount();
   });
 
+  test("tool calls refresh the band mid-turn, throttled", async ($, on) => {
+    let messages = 20_000;
+    on("session.start", ($, e) => ({ cwd: e.cwd }));
+    on("session.usage", () => {
+      const used = 3_000 + 12_000 + messages;
+      return {
+        value: {
+          startedAt: 0,
+          rateLimits: [],
+          context: {
+            window: 200_000,
+            breakdown: {
+              model: "claude-opus-5-5",
+              totalTokens: used,
+              maxTokens: 200_000,
+              rawMaxTokens: 200_000,
+              percentage: Math.round(used / 2_000),
+              isAutoCompactEnabled: true,
+              autoCompactThreshold: 155_000,
+              categories: [
+                { name: "System prompt", tokens: 3_000, color: "promptBorder", kind: "used", isDeferred: false },
+                { name: "System tools", tokens: 12_000, color: "inactive", kind: "used", isDeferred: false },
+                { name: "Messages", tokens: messages, color: "inactive", kind: "used", isDeferred: false },
+                { name: "Free space", tokens: 200_000 - 45_000 - used, color: "promptBorder", kind: "free", isDeferred: false },
+                { name: "Autocompact buffer", tokens: 45_000, color: "inactive", kind: "buffer", isDeferred: false },
+              ],
+            },
+          },
+        },
+      } as any;
+    });
+    on("command.register", () => ({ value: undefined }) as any);
+    on("tool.call", () => ({ result: { text: "ok" } }) as any);
+
+    await $.session.start({ surface: "terminal", isInteractive: true, cwd: "/work" } as any);
+    const ui = await $.ui.mount({
+      plugin: "context-bar",
+      surface: "terminal",
+      component: "AbovePrompt",
+      props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 120 },
+    } as any);
+    expect(await ui.find({ type: "Text", text: /^35k$/ })).toBeDefined();
+
+    // +400 tokens: same percentage point and under the 1k threshold, no redraw.
+    messages = 20_400;
+    await $.tool.call({ tool: "Read", file_path: "a.md" } as any);
+    expect(await ui.find({ type: "Text", text: /^35k$/ })).toBeDefined();
+
+    // +1.5k more: past the threshold, the band moves without a session.measure.
+    messages = 21_900;
+    await $.tool.call({ tool: "Read", file_path: "b.md" } as any);
+    expect(await ui.find({ type: "Text", text: /^36.9k$/ })).toBeDefined();
+    await ui.unmount();
+  });
+
   test("the desktop draws the bar as sized blocks, not runs of characters", async ($, on) => {
     // The desktop counts columns in its code font but draws Text in a proportional one,
     // so a bar of spaces came out a third as wide as the card and one of ░ wrapped.
